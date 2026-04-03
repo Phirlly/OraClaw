@@ -182,7 +182,25 @@ runcmd:
     set -euo pipefail
 
     echo "[openclaw] Install OpenClaw (no-onboard)"
-    su - opc -c 'curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard'
+
+    # The OpenClaw installer may fail intermittently when fetching Node.js/NodeSource.
+    # Retry to make provisioning resilient.
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+      if su - opc -c 'curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard'; then
+        echo "[openclaw] OpenClaw install succeeded"
+        break
+      fi
+      echo "[openclaw] OpenClaw install failed (attempt $${i}/10); sleeping 15s..."
+      sleep 15
+    done
+
+    if ! su - opc -c 'command -v openclaw >/dev/null 2>&1'; then
+      echo "[openclaw] ERROR: OpenClaw not installed after retries"
+      echo "[openclaw] Diagnostics: DNS + OpenClaw installer reachability"
+      getent hosts openclaw.ai || true
+      curl -I --max-time 5 https://openclaw.ai/install.sh 2>/dev/null | head -n 20 || true
+      exit 1
+    fi
 
     echo "[openclaw] Enable lingering for opc (required for user services at boot)"
     loginctl enable-linger opc
