@@ -217,6 +217,9 @@ runcmd:
     su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config set gateway.auth.mode none"
     su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config set gateway.trustedProxies '[\"${vcn_cidr}\"]'"
 
+    # Allow Control UI WebSocket connections from any HTTPS origin (temporary permissive setting)
+    su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config set gateway.controlUi.allowedOrigins '[\"https://*\"]'"
+
     echo "[openclaw] Install + start OpenClaw gateway service"
     su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; export XDG_RUNTIME_DIR=\"$${OPC_RUNTIME_DIR}\"; openclaw gateway install"
 
