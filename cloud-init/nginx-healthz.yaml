@@ -110,28 +110,13 @@ runcmd:
         exit 1
       fi
 
-      CONF="$${TLS_DIR}/openssl.cnf"
-      cat > "$${CONF}" <<EOF
-[req]
-distinguished_name=req_dn
-x509_extensions=v3_req
-prompt=no
-
-[req_dn]
-CN=$${INSTANCE_IP}
-
-[v3_req]
-subjectAltName=@alt_names
-
-[alt_names]
-IP.1=$${INSTANCE_IP}
-EOF
-
+      # No openssl.cnf blob (prevents cloud-init YAML parse issues)
       openssl req -x509 -nodes -newkey rsa:2048 \
         -keyout "$${KEY}" \
         -out "$${CRT}" \
         -days 3650 \
-        -config "$${CONF}"
+        -subj "/CN=$${INSTANCE_IP}" \
+        -addext "subjectAltName=IP:$${INSTANCE_IP}"
 
       chmod 0600 "$${KEY}"
       chmod 0644 "$${CRT}"
