@@ -215,10 +215,12 @@ runcmd:
     su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config set gateway.mode local"
     su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config set gateway.bind loopback"
     su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config set gateway.auth.mode none"
-    su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config set gateway.trustedProxies '[\"${vcn_cidr}\"]'"
 
-    # Allow Control UI WebSocket connections from any HTTPS origin (temporary permissive setting)
-    su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config set gateway.controlUi.allowedOrigins '[\"https://*\"]'"
+    # Trust VCN CIDR + localhost, because nginx is a local proxy setting forwarded headers.
+    su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config set gateway.trustedProxies '[\"${vcn_cidr}\",\"127.0.0.1\",\"::1\"]'"
+
+    # Allow Control UI WebSocket connections from any origin (OpenClaw wildcard)
+    su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config set gateway.controlUi.allowedOrigins '[\"*\"]'"
 
     echo "[openclaw] Install + start OpenClaw gateway service"
     su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; export XDG_RUNTIME_DIR=\"$${OPC_RUNTIME_DIR}\"; openclaw gateway install"
