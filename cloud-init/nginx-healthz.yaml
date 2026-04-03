@@ -19,7 +19,7 @@ runcmd:
 
     echo "[openclaw] Install system deps with retries"
     for i in 1 2 3 4 5 6 7 8 9 10; do
-      if dnf -y makecache && dnf -y install nginx python3 python3-pip curl jq; then
+      if dnf -y makecache && dnf -y install nginx python3 python3-pip curl jq openssl; then
         echo "[openclaw] deps install succeeded"
         break
       fi
@@ -34,9 +34,11 @@ runcmd:
 
     echo "[openclaw] Download OpenClaw/OCI proxy assets from GitHub"
 
-    ASSET_BASE="https://raw.githubusercontent.com/Phirlly/OCIOraClaw/main/cloud-init/assets"
+    # Source-of-truth repo (deployment bundle + raw assets)
+    ASSET_BASE="https://raw.githubusercontent.com/Phirlly/OraClaw/main/stack/cloud-init/assets"
 
     mkdir -p /etc/nginx/conf.d
+    mkdir -p /etc/nginx/tls
     mkdir -p /etc/oci-openai-proxy
     mkdir -p /etc/openclaw
     mkdir -p /usr/share/nginx/html
@@ -79,6 +81,61 @@ runcmd:
     chmod 0644 /etc/openclaw/openclaw-oci-models.batch.json
 
     chmod 0644 /usr/local/lib/oci_openai_proxy/*.py
+
+  - |
+    set -euo pipefail
+
+    echo "[openclaw] Generate self-signed TLS cert for nginx (idempotent)"
+
+    TLS_DIR="/etc/nginx/tls"
+    KEY="$${TLS_DIR}/openclaw.key"
+    CRT="$${TLS_DIR}/openclaw.crt"
+
+    mkdir -p "$${TLS_DIR}"
+
+    if [ ! -s "$${KEY}" ] || [ ! -s "$${CRT}" ]; then
+      # OCI Instance Metadata Service (IMDS)
+      # NOTE: Avoid Terraform dependency cycles by fetching the public IP at runtime.
+      INSTANCE_IP=""
+      for i in 1 2 3 4 5 6 7 8 9 10; do
+        INSTANCE_IP="$(curl -fsS --max-time 2 http://169.254.169.254/opc/v1/instance/metadata/publicIp 2>/dev/null || true)"
+        if [ -n "$${INSTANCE_IP}" ]; then
+          break
+        fi
+        sleep 1
+      done
+
+      if [ -z "$${INSTANCE_IP}" ]; then
+        echo "[openclaw] ERROR: could not determine public IP from IMDS"
+        exit 1
+      fi
+
+      CONF="$${TLS_DIR}/openssl.cnf"
+      cat > "$${CONF}" <<EOF
+[req]
+distinguished_name=req_dn
+x509_extensions=v3_req
+prompt=no
+
+[req_dn]
+CN=$${INSTANCE_IP}
+
+[v3_req]
+subjectAltName=@alt_names
+
+[alt_names]
+IP.1=$${INSTANCE_IP}
+EOF
+
+      openssl req -x509 -nodes -newkey rsa:2048 \
+        -keyout "$${KEY}" \
+        -out "$${CRT}" \
+        -days 3650 \
+        -config "$${CONF}"
+
+      chmod 0600 "$${KEY}"
+      chmod 0644 "$${CRT}"
+    fi
 
   - |
     set -euo pipefail
@@ -150,9 +207,9 @@ runcmd:
   - |
     set -euo pipefail
 
-    echo "[openclaw] Open firewalld 8080"
+    echo "[openclaw] Open firewalld 443"
     systemctl enable --now firewalld || true
-    firewall-cmd --zone=public --add-port=8080/tcp --permanent || true
+    firewall-cmd --zone=public --add-port=443/tcp --permanent || true
     firewall-cmd --reload || true
 
   - |
@@ -179,9 +236,6 @@ runcmd:
 
     # IMPORTANT: JSON array quoting that OpenClaw accepts as ARRAY (prevents cloud-init failure)
     su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config set gateway.trustedProxies '[\"${vcn_cidr}\"]'"
-
-    # Allow browser WS Origin via LB
-    su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config set gateway.controlUi.allowedOrigins '[\"${gateway_allowed_origin}\"]'"
 
     echo "[openclaw] Install + start OpenClaw gateway service"
     su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; export XDG_RUNTIME_DIR=\"$${OPC_RUNTIME_DIR}\"; openclaw gateway install"
@@ -223,7 +277,7 @@ runcmd:
     set -euo pipefail
 
     echo "[openclaw] Final validation"
-    curl -fsS http://127.0.0.1:8080/healthz >/dev/null
+    curl -kfsS https://127.0.0.1/healthz >/dev/null
     curl -fsS http://127.0.0.1:18789/health >/dev/null
 
     echo "[openclaw] Proxy models (sanity):"
@@ -232,4 +286,4 @@ runcmd:
     echo "[openclaw] OpenClaw models status:"
     su - opc -c 'export PATH="/home/opc/.npm-global/bin:$PATH"; openclaw models status --json' | jq . || true
 
-    ss -lntp | egrep ':(8080|18789|8000)\\b' || true
+    ss -lntp | egrep ':(443|18789|8000)\\b' || true

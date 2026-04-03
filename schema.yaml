@@ -1,11 +1,13 @@
-title: "OpenClaw on OCI: HTTPS Load Balancer + Compute"
+title: "OpenClaw on OCI: Always Free Compute (HTTPS on-instance)"
 
 description: |
-  Deploys OpenClaw Gateway behind an OCI Public Load Balancer (TLS termination on 443).
+  Deploys OpenClaw Gateway on an OCI Always Free compute instance.
+
+  HTTPS is terminated on the instance using an auto-generated self-signed certificate.
 
   Entry points:
-  - https://<LB_IP>/healthz
-  - https://<LB_IP>/login
+  - https://<INSTANCE_PUBLIC_IP>/healthz
+  - https://<INSTANCE_PUBLIC_IP>/login
 
 schemaVersion: 1.1.0
 locale: "en"
@@ -23,13 +25,7 @@ variableGroups:
     variables:
       - compartment_ocid
 
-  - title: "Network"
-    variables:
-      - vcn_cidr
-      - public_subnet_cidr
-      - private_subnet_cidr
-
-  - title: "Compute"
+  - title: "Compute (defaults target Always Free)"
     variables:
       - instance_display_name
       - oracle_linux_version
@@ -38,20 +34,15 @@ variableGroups:
       - compute_memory_gbs
       - ssh_public_key
 
-  - title: "OpenClaw Gateway"
-    variables:
-      - openclaw_gateway_token
-
   - title: "OCI OpenAI Proxy (optional override)"
     variables:
       - oci_openai_proxy_models_json_override
 
-  - title: "Load Balancer TLS (PEM Uploads)"
+  - title: "Advanced (optional)"
     variables:
-      - lb_tls_public_cert_pem_file
-      - lb_tls_private_key_pem_file
-      - lb_tls_ca_chain_pem_file
-      - lb_tls_private_key_passphrase
+      - vcn_cidr
+      - public_subnet_cidr
+      - private_subnet_cidr
 
 variables:
   tenancy_ocid:
@@ -68,6 +59,49 @@ variables:
     type: oci:identity:compartment:id
     title: "Compartment OCID"
     required: true
+
+  instance_display_name:
+    type: string
+    title: "Instance name"
+    required: true
+    default: "openclaw"
+
+  oracle_linux_version:
+    type: string
+    title: "Oracle Linux major version"
+    required: true
+    default: "9"
+
+  compute_shape:
+    type: string
+    title: "Compute shape"
+    required: true
+    default: "VM.Standard.A1.Flex"
+
+  compute_ocpus:
+    type: number
+    title: "OCPUs"
+    required: true
+    default: 1
+
+  compute_memory_gbs:
+    type: number
+    title: "Memory (GB)"
+    required: true
+    default: 6
+
+  ssh_public_key:
+    type: oci:core:ssh:publickey
+    title: "SSH public key"
+    description: "Drop a .pub file or paste a public key."
+    required: true
+    default: ""
+
+  oci_openai_proxy_models_json_override:
+    type: string
+    title: "Override models.json (optional)"
+    required: false
+    default: ""
 
   vcn_cidr:
     type: string
@@ -86,75 +120,3 @@ variables:
     title: "Private subnet CIDR"
     required: true
     default: "10.0.2.0/24"
-
-  instance_display_name:
-    type: string
-    title: "Instance name"
-    required: true
-    default: "openclaw"
-
-  oracle_linux_version:
-    type: string
-    title: "Oracle Linux major version"
-    required: true
-    default: "9"
-
-  compute_shape:
-    type: string
-    title: "Compute shape"
-    required: true
-    default: "VM.Standard.E5.Flex"
-
-  compute_ocpus:
-    type: number
-    title: "OCPUs"
-    required: true
-    default: 2
-
-  compute_memory_gbs:
-    type: number
-    title: "Memory (GB)"
-    required: true
-    default: 16
-
-  ssh_public_key:
-    type: oci:core:ssh:publickey
-    title: "SSH public key"
-    description: "Drop a .pub file or paste a public key."
-    required: true
-    default: ""
-
-  openclaw_gateway_token:
-    type: password
-    title: "OpenClaw gateway token (optional override)"
-    description: |
-      Optional. If empty, Terraform auto-generates a random token (stored in state).
-      Example manual token: openssl rand -hex 32
-    required: false
-    default: ""
-
-  oci_openai_proxy_models_json_override:
-    type: string
-    title: "Override models.json (optional)"
-    required: false
-    default: ""
-
-  lb_tls_public_cert_pem_file:
-    type: file
-    title: "LB TLS server certificate (PEM)"
-    required: true
-
-  lb_tls_private_key_pem_file:
-    type: file
-    title: "LB TLS private key (PEM)"
-    required: true
-
-  lb_tls_ca_chain_pem_file:
-    type: file
-    title: "LB TLS CA/intermediate chain (PEM) (optional)"
-    required: false
-
-  lb_tls_private_key_passphrase:
-    type: password
-    title: "Private key passphrase (optional)"
-    required: false

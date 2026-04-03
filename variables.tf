@@ -45,36 +45,6 @@ variable "ssh_public_key" {
 }
 
 # =====================
-# TLS inputs (Resource Manager file upload)
-# =====================
-
-variable "lb_tls_public_cert_pem_file" {
-  type        = string
-  description = "(RM file upload) PEM-encoded leaf/server certificate. RM stores this as base64; Terraform base64decode()."
-  sensitive   = true
-}
-
-variable "lb_tls_private_key_pem_file" {
-  type        = string
-  description = "(RM file upload) PEM-encoded private key. RM stores this as base64; Terraform base64decode()."
-  sensitive   = true
-}
-
-variable "lb_tls_ca_chain_pem_file" {
-  type        = string
-  description = "(Optional, RM file upload) PEM-encoded CA/intermediate chain. RM stores this as base64; Terraform base64decode()."
-  sensitive   = true
-  default     = ""
-}
-
-variable "lb_tls_private_key_passphrase" {
-  type        = string
-  description = "(Optional) Passphrase for encrypted private keys. Leave empty if key is unencrypted."
-  sensitive   = true
-  default     = ""
-}
-
-# =====================
 # OpenClaw (token override or auto-generate)
 # =====================
 
@@ -93,7 +63,7 @@ variable "oci_openai_proxy_models_json_override" {
 }
 
 # =====================
-# Compute (Oracle Linux on E5 Flex)
+# Compute (Oracle Linux on Always Free A1 Flex by default)
 # =====================
 
 variable "instance_display_name" {
@@ -110,18 +80,18 @@ variable "oracle_linux_version" {
 
 variable "compute_shape" {
   type        = string
-  description = "Compute shape for the OpenClaw instance."
-  default     = "VM.Standard.E5.Flex"
+  description = "Compute shape for the OpenClaw instance. Default is Always Free Ampere."
+  default     = "VM.Standard.A1.Flex"
 }
 
 variable "compute_ocpus" {
   type        = number
-  description = "Number of OCPUs for the Flex shape."
-  default     = 2
+  description = "Number of OCPUs for the Flex shape. Default targets Always Free."
+  default     = 1
 }
 
 variable "compute_memory_gbs" {
   type        = number
-  description = "Memory (GB) for the Flex shape."
-  default     = 16
+  description = "Memory (GB) for the Flex shape. Default targets Always Free."
+  default     = 6
 }
