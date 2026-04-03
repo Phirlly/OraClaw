@@ -231,7 +231,26 @@ runcmd:
     su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw models aliases add oci-embed oci/oci.cohere.embed-v4.0"
 
     su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config validate"
+
+    echo "[openclaw] Restart OpenClaw gateway service (apply model config)"
     su - opc -c "export XDG_RUNTIME_DIR=\"$${OPC_RUNTIME_DIR}\"; systemctl --user restart openclaw-gateway.service"
+
+    echo "[openclaw] Wait for OpenClaw gateway to become healthy (post-restart)"
+    for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+      if curl -fsS --max-time 2 http://127.0.0.1:18789/health >/dev/null 2>&1; then
+        echo "[openclaw] Gateway healthy (post-restart)"
+        break
+      fi
+      echo "[openclaw] Gateway not ready after restart yet (attempt $${i}/20); sleeping 3s..."
+      sleep 3
+    done
+
+    if ! curl -fsS --max-time 2 http://127.0.0.1:18789/health >/dev/null 2>&1; then
+      echo "[openclaw] Gateway failed to become healthy after restart; dumping status"
+      su - opc -c "export XDG_RUNTIME_DIR=\"$${OPC_RUNTIME_DIR}\"; systemctl --user status openclaw-gateway.service --no-pager" || true
+      su - opc -c "export XDG_RUNTIME_DIR=\"$${OPC_RUNTIME_DIR}\"; journalctl --user -u openclaw-gateway.service --no-pager -n 250" || true
+      exit 1
+    fi
 
   - |
     set -euo pipefail
