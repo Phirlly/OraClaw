@@ -35,7 +35,6 @@ runcmd:
     echo "[openclaw] Download OpenClaw/OCI proxy assets from GitHub"
 
     # Source-of-truth repo (deployment bundle + raw assets)
-    # Repo layout verified: assets are under top-level cloud-init/assets (NOT stack/cloud-init/assets)
     ASSET_BASE="https://raw.githubusercontent.com/Phirlly/OraClaw/main/cloud-init/assets"
 
     mkdir -p /etc/nginx/conf.d
@@ -95,28 +94,13 @@ runcmd:
     mkdir -p "$${TLS_DIR}"
 
     if [ ! -s "$${KEY}" ] || [ ! -s "$${CRT}" ]; then
-      # OCI Instance Metadata Service (IMDS)
-      # NOTE: Avoid Terraform dependency cycles by fetching the public IP at runtime.
-      INSTANCE_IP=""
-      for i in 1 2 3 4 5 6 7 8 9 10; do
-        INSTANCE_IP="$(curl -fsS --max-time 2 http://169.254.169.254/opc/v1/instance/metadata/publicIp 2>/dev/null || true)"
-        if [ -n "$${INSTANCE_IP}" ]; then
-          break
-        fi
-        sleep 1
-      done
-
-      if [ -z "$${INSTANCE_IP}" ]; then
-        echo "[openclaw] ERROR: could not determine public IP from IMDS"
-        exit 1
-      fi
-
+      # Use a stable CN/SAN; public IP discovery via IMDS is not reliably available on all images.
       openssl req -x509 -nodes -newkey rsa:2048 \
         -keyout "$${KEY}" \
         -out "$${CRT}" \
         -days 3650 \
-        -subj "/CN=$${INSTANCE_IP}" \
-        -addext "subjectAltName=IP:$${INSTANCE_IP}"
+        -subj "/CN=openclaw.local" \
+        -addext "subjectAltName=DNS:openclaw.local,IP:127.0.0.1"
 
       chmod 0600 "$${KEY}"
       chmod 0644 "$${CRT}"
@@ -143,10 +127,7 @@ runcmd:
     python3 -m pip install --upgrade pip
     python3 -m pip install fastapi uvicorn oci
 
-    # Validate deps import after installation
     python3 -c 'import fastapi, uvicorn, oci; print("python deps OK")'
-
-    # Validate proxy package imports after deps exist
     PYTHONPATH=/usr/local/lib python3 -c 'import oci_openai_proxy; import oci_openai_proxy.app; print("oci_openai_proxy package OK")'
 
   - |
@@ -215,11 +196,7 @@ runcmd:
     echo "[openclaw] Configure OpenClaw"
     su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config set gateway.mode local"
     su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config set gateway.bind loopback"
-
-    # IMPORTANT: remove token auth (prevents /chat token prompt + token_missing)
     su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config set gateway.auth.mode none"
-
-    # IMPORTANT: JSON array quoting that OpenClaw accepts as ARRAY (prevents cloud-init failure)
     su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config set gateway.trustedProxies '[\"${vcn_cidr}\"]'"
 
     echo "[openclaw] Install + start OpenClaw gateway service"
@@ -245,7 +222,6 @@ runcmd:
     fi
 
     echo "[openclaw] Configure OpenClaw models to use OCI proxy"
-
     su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config set --batch-file /etc/openclaw/openclaw-oci-models.batch.json"
 
     su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw models aliases add gemini oci/oci.google.gemini-2.5-pro"
@@ -255,7 +231,6 @@ runcmd:
     su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw models aliases add oci-embed oci/oci.cohere.embed-v4.0"
 
     su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config validate"
-
     su - opc -c "export XDG_RUNTIME_DIR=\"$${OPC_RUNTIME_DIR}\"; systemctl --user restart openclaw-gateway.service"
 
   - |
