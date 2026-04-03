@@ -35,7 +35,8 @@ runcmd:
     echo "[openclaw] Download OpenClaw/OCI proxy assets from GitHub"
 
     # Source-of-truth repo (deployment bundle + raw assets)
-    ASSET_BASE="https://raw.githubusercontent.com/Phirlly/OraClaw/main/stack/cloud-init/assets"
+    # Repo layout verified: assets are under top-level cloud-init/assets (NOT stack/cloud-init/assets)
+    ASSET_BASE="https://raw.githubusercontent.com/Phirlly/OraClaw/main/cloud-init/assets"
 
     mkdir -p /etc/nginx/conf.d
     mkdir -p /etc/nginx/tls
@@ -110,7 +111,6 @@ runcmd:
         exit 1
       fi
 
-      # No openssl.cnf blob (prevents cloud-init YAML parse issues)
       openssl req -x509 -nodes -newkey rsa:2048 \
         -keyout "$${KEY}" \
         -out "$${CRT}" \
