@@ -1,0 +1,160 @@
+title: "OpenClaw on OCI: HTTPS Load Balancer + Compute"
+
+description: |
+  Deploys OpenClaw Gateway behind an OCI Public Load Balancer (TLS termination on 443).
+
+  Entry points:
+  - https://<LB_IP>/healthz
+  - https://<LB_IP>/login
+
+schemaVersion: 1.1.0
+locale: "en"
+
+variableGroups:
+  - title: "Tenancy"
+    variables:
+      - tenancy_ocid
+
+  - title: "Location"
+    variables:
+      - region
+
+  - title: "Target Compartment"
+    variables:
+      - compartment_ocid
+
+  - title: "Network"
+    variables:
+      - vcn_cidr
+      - public_subnet_cidr
+      - private_subnet_cidr
+
+  - title: "Compute"
+    variables:
+      - instance_display_name
+      - oracle_linux_version
+      - compute_shape
+      - compute_ocpus
+      - compute_memory_gbs
+      - ssh_public_key
+
+  - title: "OpenClaw Gateway"
+    variables:
+      - openclaw_gateway_token
+
+  - title: "OCI OpenAI Proxy (optional override)"
+    variables:
+      - oci_openai_proxy_models_json_override
+
+  - title: "Load Balancer TLS (PEM Uploads)"
+    variables:
+      - lb_tls_public_cert_pem_file
+      - lb_tls_private_key_pem_file
+      - lb_tls_ca_chain_pem_file
+      - lb_tls_private_key_passphrase
+
+variables:
+  tenancy_ocid:
+    type: oci:identity:tenancy:id
+    title: "Tenancy OCID"
+    required: true
+
+  region:
+    type: oci:identity:region:name
+    title: "Region"
+    required: true
+
+  compartment_ocid:
+    type: oci:identity:compartment:id
+    title: "Compartment OCID"
+    required: true
+
+  vcn_cidr:
+    type: string
+    title: "VCN CIDR"
+    required: true
+    default: "10.0.0.0/16"
+
+  public_subnet_cidr:
+    type: string
+    title: "Public subnet CIDR"
+    required: true
+    default: "10.0.1.0/24"
+
+  private_subnet_cidr:
+    type: string
+    title: "Private subnet CIDR"
+    required: true
+    default: "10.0.2.0/24"
+
+  instance_display_name:
+    type: string
+    title: "Instance name"
+    required: true
+    default: "openclaw"
+
+  oracle_linux_version:
+    type: string
+    title: "Oracle Linux major version"
+    required: true
+    default: "9"
+
+  compute_shape:
+    type: string
+    title: "Compute shape"
+    required: true
+    default: "VM.Standard.E5.Flex"
+
+  compute_ocpus:
+    type: number
+    title: "OCPUs"
+    required: true
+    default: 2
+
+  compute_memory_gbs:
+    type: number
+    title: "Memory (GB)"
+    required: true
+    default: 16
+
+  ssh_public_key:
+    type: oci:core:ssh:publickey
+    title: "SSH public key"
+    description: "Drop a .pub file or paste a public key."
+    required: true
+    default: ""
+
+  openclaw_gateway_token:
+    type: password
+    title: "OpenClaw gateway token (optional override)"
+    description: |
+      Optional. If empty, Terraform auto-generates a random token (stored in state).
+      Example manual token: openssl rand -hex 32
+    required: false
+    default: ""
+
+  oci_openai_proxy_models_json_override:
+    type: string
+    title: "Override models.json (optional)"
+    required: false
+    default: ""
+
+  lb_tls_public_cert_pem_file:
+    type: file
+    title: "LB TLS server certificate (PEM)"
+    required: true
+
+  lb_tls_private_key_pem_file:
+    type: file
+    title: "LB TLS private key (PEM)"
+    required: true
+
+  lb_tls_ca_chain_pem_file:
+    type: file
+    title: "LB TLS CA/intermediate chain (PEM) (optional)"
+    required: false
+
+  lb_tls_private_key_passphrase:
+    type: password
+    title: "Private key passphrase (optional)"
+    required: false

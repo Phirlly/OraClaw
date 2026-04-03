@@ -1,0 +1,25 @@
+{
+  "endpoint": "https://inference.generativeai.us-ashburn-1.oci.oraclecloud.com",
+  "models": {
+    "oci.google.gemini-2.5-pro": {
+      "type": "chat",
+      "oci_model_id": "ocid1.generativeaimodel.oc1.iad.amaaaaaask7dceyargceyuaysrjzo2metq2rinavayxqmpu7tkm6mmfojcvq"
+    },
+    "oci.xai.grok-4": {
+      "type": "chat",
+      "oci_model_id": "ocid1.generativeaimodel.oc1.iad.amaaaaaask7dceyaldmhg25is4nouena4oa2pj4nvwgfeempo4syiaazukia"
+    },
+    "oci.xai.grok-4.20-reasoning": {
+      "type": "chat",
+      "oci_model_id": "ocid1.generativeaimodel.oc1.iad.amaaaaaask7dceyasuv7iwnlwaakofq7z3ftxewtgqknsntnxqeopehvitdq"
+    },
+    "oci.xai.grok-code-fast-1": {
+      "type": "chat",
+      "oci_model_id": "ocid1.generativeaimodel.oc1.iad.amaaaaaask7dceyaayp5ccahfbpht56x7meyc26gyvojowmrbrr4xj626enq"
+    },
+    "oci.cohere.embed-v4.0": {
+      "type": "embedding",
+      "oci_model_id": "cohere.embed-v4.0"
+    }
+  }
+}

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenClaw Session</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; }
+      label { display: block; margin-bottom: 8px; font-weight: 600; }
+      input { width: 100%; padding: 12px; font-size: 16px; }
+      button { margin-top: 12px; padding: 12px 16px; font-size: 16px; cursor: pointer; }
+      .hint { margin-top: 12px; color: #555; }
+      code { background: #f3f3f3; padding: 2px 6px; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <h1>OpenClaw</h1>
+    <p>Enter a name to start an isolated session.</p>
+
+    <form id="f">
+      <label for="u">Session name</label>
+      <input id="u" name="u" autocomplete="username" placeholder="e.g. james" required />
+      <button type="submit">Continue</button>
+      <div class="hint">
+        You will be redirected to <code>/chat?session=agent:main:webchat:&lt;session&gt;</code>.
+      </div>
+    </form>
+
+    <script>
+      function sanitizeSessionName(s) {
+        return (s || "").trim().replace(/[^a-zA-Z0-9._-]/g, "");
+      }
+
+      document.getElementById("f").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const raw = document.getElementById("u").value;
+        const u = sanitizeSessionName(raw);
+        if (!u) {
+          alert("Please enter a valid session name (letters, numbers, ., _, -)");
+          return;
+        }
+        const session = `agent:main:webchat:${u}`;
+        const url = `/chat?session=${encodeURIComponent(session)}`;
+        window.location.assign(url);
+      });
+    </script>
+  </body>
+</html>

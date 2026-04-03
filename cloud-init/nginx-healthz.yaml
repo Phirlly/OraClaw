@@ -1,0 +1,235 @@
+#cloud-config
+
+runcmd:
+  - |
+    set -euo pipefail
+
+    echo "[openclaw] Wait for DNS to be ready (OCI yum + GitHub)"
+    for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do
+      if getent hosts yum.us-ashburn-1.oci.oraclecloud.com >/dev/null 2>&1 && getent hosts raw.githubusercontent.com >/dev/null 2>&1; then
+        echo "[openclaw] DNS ready"
+        break
+      fi
+      echo "[openclaw] DNS not ready yet (attempt $${i}/30); sleeping 5s..."
+      sleep 5
+    done
+
+    echo "[openclaw] /etc/resolv.conf:"
+    cat /etc/resolv.conf || true
+
+    echo "[openclaw] Install system deps with retries"
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+      if dnf -y makecache && dnf -y install nginx python3 python3-pip curl jq; then
+        echo "[openclaw] deps install succeeded"
+        break
+      fi
+      echo "[openclaw] deps install failed (attempt $${i}/10); sleeping 10s..."
+      sleep 10
+    done
+
+    command -v nginx >/dev/null 2>&1
+
+  - |
+    set -euo pipefail
+
+    echo "[openclaw] Download OpenClaw/OCI proxy assets from GitHub"
+
+    ASSET_BASE="https://raw.githubusercontent.com/Phirlly/OCIOraClaw/main/cloud-init/assets"
+
+    mkdir -p /etc/nginx/conf.d
+    mkdir -p /etc/oci-openai-proxy
+    mkdir -p /etc/openclaw
+    mkdir -p /usr/share/nginx/html
+
+    # Safety: ensure expected target dirs exist
+    mkdir -p /usr/local/bin
+
+    # Proxy python package directory
+    mkdir -p /usr/local/lib/oci_openai_proxy
+
+    curl -fsSL "$${ASSET_BASE}/openclaw.conf" -o /etc/nginx/conf.d/openclaw.conf
+    curl -fsSL "$${ASSET_BASE}/index.html" -o /usr/share/nginx/html/index.html
+
+    # Entrypoint (renamed to avoid python package import collisions)
+    curl -fsSL "$${ASSET_BASE}/oci_openai_proxy_server.py" -o /usr/local/bin/oci_openai_proxy_server.py
+
+    # Systemd service
+    curl -fsSL "$${ASSET_BASE}/oci-openai-proxy.service" -o /etc/systemd/system/oci-openai-proxy.service
+
+    # Models registry
+    curl -fsSL "$${ASSET_BASE}/models.json" -o /etc/oci-openai-proxy/models.json
+
+    # OpenClaw models/provider config batch (must be a JSON array per OpenClaw docs)
+    curl -fsSL "$${ASSET_BASE}/openclaw-oci-models.batch.json" -o /etc/openclaw/openclaw-oci-models.batch.json
+
+    # Proxy package modules
+    curl -fsSL "$${ASSET_BASE}/oci_openai_proxy/__init__.py" -o /usr/local/lib/oci_openai_proxy/__init__.py
+    curl -fsSL "$${ASSET_BASE}/oci_openai_proxy/config.py" -o /usr/local/lib/oci_openai_proxy/config.py
+    curl -fsSL "$${ASSET_BASE}/oci_openai_proxy/models_registry.py" -o /usr/local/lib/oci_openai_proxy/models_registry.py
+    curl -fsSL "$${ASSET_BASE}/oci_openai_proxy/oci_client.py" -o /usr/local/lib/oci_openai_proxy/oci_client.py
+    curl -fsSL "$${ASSET_BASE}/oci_openai_proxy/openai_mapping.py" -o /usr/local/lib/oci_openai_proxy/openai_mapping.py
+    curl -fsSL "$${ASSET_BASE}/oci_openai_proxy/streaming.py" -o /usr/local/lib/oci_openai_proxy/streaming.py
+    curl -fsSL "$${ASSET_BASE}/oci_openai_proxy/app.py" -o /usr/local/lib/oci_openai_proxy/app.py
+
+    chmod 0644 /etc/nginx/conf.d/openclaw.conf
+    chmod 0644 /usr/share/nginx/html/index.html
+    chmod 0755 /usr/local/bin/oci_openai_proxy_server.py
+    chmod 0644 /etc/systemd/system/oci-openai-proxy.service
+    chmod 0644 /etc/oci-openai-proxy/models.json
+    chmod 0644 /etc/openclaw/openclaw-oci-models.batch.json
+
+    chmod 0644 /usr/local/lib/oci_openai_proxy/*.py
+
+  - |
+    set -euo pipefail
+
+    echo "[openclaw] Inject runtime values into assets"
+
+    sed -i "s|__COMPARTMENT_OCID__|${compartment_ocid}|g" /etc/systemd/system/oci-openai-proxy.service
+
+    if [ -n "${oci_openai_proxy_models_json_override}" ]; then
+      printf '%s' "${oci_openai_proxy_models_json_override}" > /etc/oci-openai-proxy/models.json
+    fi
+
+    python3 -c 'import json; json.load(open("/etc/oci-openai-proxy/models.json")); print("models.json OK")'
+    python3 -c 'import json; d=json.load(open("/etc/openclaw/openclaw-oci-models.batch.json")); assert isinstance(d, list); print("openclaw-oci-models.batch.json OK")'
+
+  - |
+    set -euo pipefail
+
+    echo "[openclaw] Install python deps for OCI proxy"
+    python3 -m pip install --upgrade pip
+    python3 -m pip install fastapi uvicorn oci
+
+    # Validate deps import after installation
+    python3 -c 'import fastapi, uvicorn, oci; print("python deps OK")'
+
+    # Validate proxy package imports after deps exist
+    PYTHONPATH=/usr/local/lib python3 -c 'import oci_openai_proxy; import oci_openai_proxy.app; print("oci_openai_proxy package OK")'
+
+  - |
+    set -euo pipefail
+
+    echo "[openclaw] Enable OCI proxy service"
+    systemctl daemon-reload
+    systemctl enable --now oci-openai-proxy
+
+    echo "[openclaw] Wait for OCI proxy to become healthy"
+    for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+      if curl -fsS --max-time 2 http://127.0.0.1:8000/health >/tmp/oci-proxy-health.json 2>/dev/null; then
+        cat /tmp/oci-proxy-health.json | jq .
+        echo "[openclaw] OCI proxy healthy"
+        break
+      fi
+      echo "[openclaw] OCI proxy not ready yet (attempt $${i}/20); sleeping 3s..."
+      sleep 3
+    done
+
+    if ! curl -fsS --max-time 2 http://127.0.0.1:8000/health >/dev/null 2>&1; then
+      echo "[openclaw] OCI proxy failed to start; dumping logs"
+      systemctl status oci-openai-proxy --no-pager || true
+      journalctl -u oci-openai-proxy --no-pager -n 250 || true
+      exit 1
+    fi
+
+  - |
+    set -euo pipefail
+
+    echo "[openclaw] SELinux allow nginx -> upstream"
+    if command -v getenforce >/dev/null 2>&1; then
+      setsebool -P httpd_can_network_connect 1 || true
+    fi
+
+  - |
+    set -euo pipefail
+
+    echo "[openclaw] Enable nginx"
+    nginx -t
+    systemctl enable --now nginx
+
+  - |
+    set -euo pipefail
+
+    echo "[openclaw] Open firewalld 8080"
+    systemctl enable --now firewalld || true
+    firewall-cmd --zone=public --add-port=8080/tcp --permanent || true
+    firewall-cmd --reload || true
+
+  - |
+    set -euo pipefail
+
+    echo "[openclaw] Install OpenClaw (no-onboard)"
+    su - opc -c 'curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard'
+
+    echo "[openclaw] Enable lingering for opc (required for user services at boot)"
+    loginctl enable-linger opc
+
+    OPC_UID="$(id -u opc)"
+    OPC_RUNTIME_DIR="/run/user/$${OPC_UID}"
+
+    OPC_HOME="/home/opc"
+    OPC_OPENCLAW_BIN="$${OPC_HOME}/.npm-global/bin"
+
+    echo "[openclaw] Configure OpenClaw"
+    su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config set gateway.mode local"
+    su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config set gateway.bind loopback"
+
+    # IMPORTANT: remove token auth (prevents /chat token prompt + token_missing)
+    su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config set gateway.auth.mode none"
+
+    # IMPORTANT: JSON array quoting that OpenClaw accepts as ARRAY (prevents cloud-init failure)
+    su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config set gateway.trustedProxies '[\"${vcn_cidr}\"]'"
+
+    # Allow browser WS Origin via LB
+    su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config set gateway.controlUi.allowedOrigins '[\"${gateway_allowed_origin}\"]'"
+
+    echo "[openclaw] Install + start OpenClaw gateway service"
+    su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; export XDG_RUNTIME_DIR=\"$${OPC_RUNTIME_DIR}\"; openclaw gateway install"
+
+    su - opc -c "export XDG_RUNTIME_DIR=\"$${OPC_RUNTIME_DIR}\"; systemctl --user daemon-reload"
+    su - opc -c "export XDG_RUNTIME_DIR=\"$${OPC_RUNTIME_DIR}\"; systemctl --user enable --now openclaw-gateway.service"
+
+    echo "[openclaw] Wait for OpenClaw gateway to become healthy"
+    for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+      if curl -fsS --max-time 2 http://127.0.0.1:18789/health >/dev/null 2>&1; then
+        echo "[openclaw] Gateway healthy"
+        break
+      fi
+      echo "[openclaw] Gateway not ready yet (attempt $${i}/20); sleeping 3s..."
+      sleep 3
+    done
+
+    if ! curl -fsS --max-time 2 http://127.0.0.1:18789/health >/dev/null 2>&1; then
+      echo "[openclaw] Gateway failed to start; dumping status"
+      su - opc -c "export XDG_RUNTIME_DIR=\"$${OPC_RUNTIME_DIR}\"; systemctl --user status openclaw-gateway.service --no-pager" || true
+      exit 1
+    fi
+
+    echo "[openclaw] Configure OpenClaw models to use OCI proxy"
+
+    su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config set --batch-file /etc/openclaw/openclaw-oci-models.batch.json"
+
+    su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw models aliases add gemini oci/oci.google.gemini-2.5-pro"
+    su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw models aliases add grok oci/oci.xai.grok-4"
+    su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw models aliases add grok-reason oci/oci.xai.grok-4.20-reasoning"
+    su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw models aliases add grok-code oci/oci.xai.grok-code-fast-1"
+    su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw models aliases add oci-embed oci/oci.cohere.embed-v4.0"
+
+    su - opc -c "export PATH=\"$${OPC_OPENCLAW_BIN}:$PATH\"; openclaw config validate"
+
+    su - opc -c "export XDG_RUNTIME_DIR=\"$${OPC_RUNTIME_DIR}\"; systemctl --user restart openclaw-gateway.service"
+
+  - |
+    set -euo pipefail
+
+    echo "[openclaw] Final validation"
+    curl -fsS http://127.0.0.1:8080/healthz >/dev/null
+    curl -fsS http://127.0.0.1:18789/health >/dev/null
+
+    echo "[openclaw] Proxy models (sanity):"
+    curl -fsS http://127.0.0.1:8000/v1/models | jq -r '.data[].id' || true
+
+    echo "[openclaw] OpenClaw models status:"
+    su - opc -c 'export PATH="/home/opc/.npm-global/bin:$PATH"; openclaw models status --json' | jq . || true
+
+    ss -lntp | egrep ':(8080|18789|8000)\\b' || true

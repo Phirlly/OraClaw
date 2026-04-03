@@ -1,0 +1,25 @@
+[Unit]
+Description=OCI OpenAI-compatible proxy (Instance Principals)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+
+# Ensure /usr/local/lib/oci_openai_proxy is importable
+Environment=PYTHONPATH=/usr/local/lib
+
+Environment=OCI_COMPARTMENT_ID=__COMPARTMENT_OCID__
+Environment=OCI_GENAI_ENDPOINT=https://inference.generativeai.us-ashburn-1.oci.oraclecloud.com
+Environment=OCI_OPENAI_PROXY_MODELS_FILE=/etc/oci-openai-proxy/models.json
+Environment=PROXY_HOST=127.0.0.1
+Environment=PROXY_PORT=8000
+
+ExecStart=/usr/bin/python3 /usr/local/bin/oci_openai_proxy_server.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

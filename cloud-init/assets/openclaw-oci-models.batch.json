@@ -1,0 +1,40 @@
+[
+  {
+    "path": "models.mode",
+    "value": "merge"
+  },
+  {
+    "path": "models.providers.oci",
+    "value": {
+      "baseUrl": "http://127.0.0.1:8000/v1",
+      "apiKey": "local",
+      "api": "openai-completions",
+      "models": [
+        {
+          "id": "oci.google.gemini-2.5-pro",
+          "name": "OCI Gemini 2.5 Pro"
+        },
+        {
+          "id": "oci.xai.grok-4",
+          "name": "OCI Grok-4"
+        },
+        {
+          "id": "oci.xai.grok-4.20-reasoning",
+          "name": "OCI Grok-4.20 Reasoning"
+        },
+        {
+          "id": "oci.xai.grok-code-fast-1",
+          "name": "OCI Grok Code Fast 1"
+        },
+        {
+          "id": "oci.cohere.embed-v4.0",
+          "name": "OCI Cohere Embed v4"
+        }
+      ]
+    }
+  },
+  {
+    "path": "agents.defaults.model.primary",
+    "value": "oci/oci.xai.grok-code-fast-1"
+  }
+]
