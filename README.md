@@ -1,6 +1,6 @@
 # OraClaw — OpenClaw on OCI (Always Free Compute) + OCI Generative AI (OpenAI-compatible)
 
-This folder (`stack/`) contains an **OCI Resource Manager compatible Terraform stack** that deploys **OpenClaw Gateway** on an **OCI Always Free** compute instance.
+This repository contains an **OCI Resource Manager compatible Terraform stack** that deploys **OpenClaw Gateway** on an **OCI Always Free** compute instance.
 
 It also deploys a local **OCI → OpenAI-compatible proxy** so OpenClaw can use **OCI Generative AI Inference** models through an OpenAI-style API (`/v1/chat/completions`, `/v1/embeddings`).
 
@@ -43,7 +43,7 @@ Terraform in this stack creates:
 
 ## Entry points (after Apply)
 
-From `stack/outputs.tf` + `stack/schema.yaml`, the primary URLs are:
+From `outputs.tf` + `schema.yaml`, the primary URLs are:
 
 - Health check:
   - `https://<INSTANCE_PUBLIC_IP>/healthz`
@@ -67,17 +67,34 @@ Optional:
 - **Override models.json** (`oci_openai_proxy_models_json_override`)
   - This overrides the proxy’s model catalog at `/etc/oci-openai-proxy/models.json`.
 
-## How OCI Generative AI access works (important)
+## IAM prerequisite (required for OCI Generative AI)
 
-The proxy authenticates to OCI using **Instance Principals**.
+The OCI OpenAI-compatible proxy authenticates to OCI using **Instance Principals**.
 
-That means the instance must be allowed (via dynamic group + policy) to call the Generative AI services in your tenancy/compartment.
+Important:
+- This stack does **not** “create” Instance Principals.
+- **Instance Principals** is an OCI capability of Compute instances.
+- You **must** grant the instance permission to call OCI Generative AI via **Dynamic Group + Policy**, otherwise GenAI requests will fail.
 
-If you don’t already have this configured, you will need an IAM policy similar to:
+### Dynamic Group (example)
 
-- Allow the instance (dynamic group) to use Generative AI in the target compartment.
+Name:
+- `OraClawDynamicGroup`
 
-(Exact dynamic group + policy setup varies by tenancy standards. If you want, I can add a concrete IAM section once you confirm your preferred policy wording.)
+Matching rule (use your deployment compartment OCID):
+
+- `instance.compartment.id = '<your compartment ocid>'`
+
+### Policy (recommended: scoped to the deployment compartment)
+
+Create a policy in the **deployment compartment** (recommended least privilege) that grants Generative AI access:
+
+- `Allow dynamic-group OraClawDynamicGroup to manage generative-ai-family in compartment <your compartment name>`
+
+Notes:
+- The policy must be created in a location (tenancy/compartment) that matches OCI IAM policy scoping rules for your org.
+- If you prefer/require a tenancy-level policy instead, you can use:
+  - `Allow dynamic-group OraClawDynamicGroup to manage generative-ai-family in tenancy`
 
 ## Verify after deployment
 
@@ -139,4 +156,3 @@ Key files:
 - `stack/cloud-init/nginx-healthz.yaml`
 - `stack/cloud-init/assets/oci_openai_proxy_server.py`
 - `stack/cloud-init/assets/oci_openai_proxy/`
-```
