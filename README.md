@@ -18,7 +18,12 @@ Automated deployment:
 
 Deploy button (main branch ZIP):
 
-[![Deploy to Oracle Cloud](https://docs.oracle.com/en-us/iaas/Content/ResourceManager/Images/deploy-to-oracle-cloud.svg)](https://cloud.oracle.com/resourcemanager/stacks/create?zipUrl=https://github.com/Phirlly/OraClaw/archive/refs/heads/main.zip)
+<p align="center">
+  <a href="https://cloud.oracle.com/resourcemanager/stacks/create?zipUrl=https://github.com/Phirlly/OraClaw/archive/refs/heads/main.zip">
+    <img alt="Deploy to Oracle Cloud" src="https://docs.oracle.com/en-us/iaas/Content/ResourceManager/Images/deploy-to-oracle-cloud.svg" />
+  </a>
+</p>
+
 
 If the button doesn’t work in your environment, use this URL directly:
 
