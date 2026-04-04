@@ -41,6 +41,40 @@ Terraform in this stack creates:
     - **OpenClaw Gateway** (local mode, loopback bind)
     - **OCI OpenAI-compatible proxy** (FastAPI + Uvicorn, Instance Principals)
 
+## Wait for cloud-init provisioning to complete
+
+After the instance boots, it runs a cloud-init script that installs and configures nginx, the OCI proxy, and OpenClaw.
+
+Important:
+- The instance can be in a “Running” state before cloud-init is finished.
+- If you try to access the UI too early, you may see connection errors or incomplete behavior.
+
+To confirm cloud-init is finished, SSH to the instance and run:
+
+```bash
+sudo cloud-init status --long || true
+```
+
+Expected output includes:
+- `status: done`
+- `extended_status: done`
+
+Example:
+
+```bash
+[opc@openclaw ~]$ sudo cloud-init status --long || true
+status: done
+extended_status: done
+boot_status_code: enabled-by-generator
+last_update: Thu, 01 Jan 1970 00:07:41 +0000
+detail: DataSourceOracle
+errors: []
+recoverable_errors: {}
+[opc@openclaw ~]$
+```
+
+Once cloud-init is `done`, proceed to the entry points below.
+
 ## Entry points (after Apply)
 
 From `outputs.tf` + `schema.yaml`, the primary URLs are:
@@ -124,6 +158,11 @@ Check the Resource Manager Apply Job logs:
 
 - Ensure NSG ingress includes **TCP 443** from `0.0.0.0/0`.
 - Verify the instance is running and has a public IP.
+- Confirm cloud-init has finished:
+
+```bash
+sudo cloud-init status --long || true
+```
 
 ### Proxy / GenAI issues
 
